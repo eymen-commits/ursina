@@ -59,6 +59,11 @@ def bombayipatlat():
     destroy(b,3)
     
 def input(key):
+
+    if key =="g" and distance(player,gun1)<3:
+        getgun()
+    if key =="g" and distance(player,gun2)<3:
+        getgun2()
     if key =="s":
         player.z -=3
     if key =="w":
@@ -95,6 +100,28 @@ def input(key):
         destroy(menzil,delay=8)
     if key =="p":
         invoke(particle_patlat,delay=3)
+    if key =="left mouse down" and player.gun:
+        bullet = Entity(model="cube",color=color.black,scale=0.6,parent=player.gun)
+        bullet.world_parent=scene
+        bullet.animate_position(player.gun.position+bullet.forward*50)
+        bullets.append(bullet)
+        invoke(bullet_pop,bullet,delay=0.9)
+        destroy(bullet,1)
+
+def bullet_pop(bullet):
+    bullets.remove(bullet)
+def hit_enemy():
+    for npc in npclist:
+        for bullet in bullets:
+            if distance(npc,bullet)<3:
+                npc.x = random.randint(-100,100)
+                npc.z = random.randint(-100,100)
+
+
+
+
+
+
 
 def npc_hareket():
     for npc in npclist:     
@@ -102,8 +129,9 @@ def npc_hareket():
         if distance(npc,player)<1:
             player.x = 0
             player.z= 0
-        if distance(npc,player)>20:
-            npc.look_at(player)
+        if distance(npc,player)>100:
+            npc.look_at_xz(player)
+            npc.rotation_y += random.randint(-30,30)
 
 
 def update():
@@ -116,6 +144,7 @@ def update():
     bombyakala()
     if mouse.world_point:
      player.look_at_xz(mouse.world_point)
+    hit_enemy()
 
 
 
@@ -145,7 +174,7 @@ for i in range(10):
 for i in range(100):
     x = random.randint(-90,90)
     z = random.randint(-90,90)
-    npc = Entity(model = "cube",scale_y = 2,color=color.red,x=x,origin_y=-0.5,z=z,speed = random.uniform(2,10))
+    npc = Entity(model = "cube",scale_y = 2,color=color.red,x=x,origin_y=-0.5,z=z,speed = random.uniform(5,10))
     npclist.append(npc)  
 
 
@@ -185,6 +214,7 @@ def getgun2():
 
 
 gun2.on_click=getgun2
+bullets=[]
 EditorCamera()
 Sky()
 app.run()
