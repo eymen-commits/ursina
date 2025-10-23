@@ -1,4 +1,5 @@
 from ursina import *
+
 class Particle(Entity):
     def __init__(self,position, color):
         super().__init__(
@@ -23,8 +24,24 @@ class Particle(Entity):
 
 
 
-
-
+#MARK:CARDRİVE
+def cardrive(dt):
+    if held_keys["w"]:
+        car.speed += accel*dt
+        car.speed = min(car.speed,maxforward)
+    elif held_keys["s"]:
+        car.speed -= brake*dt
+        car.speed = max(car.speed,-maxbackward)
+    else:
+        car.speed =lerp(car.speed,0,min(drag*dt,1))
+    #direksiyon
+    turninput=held_keys["a"]-held_keys["d"]
+    if abs(car.speed)>0.1 and turninput!=0:
+        sign=1 if car.speed>=0 else -1
+        car.rotation_y+= turninput*turnrate*dt*sign
+    
+    
+    
 
 
 
@@ -57,7 +74,7 @@ def bombayipatlat():
              npc.animate_position(npc.forward*-50)
     b = koyulanbombs.pop()
     destroy(b,3)
-    
+ #MARK:İNPUT   
 def input(key):
 
     if key =="g" and distance(player,gun1)<3:
@@ -107,6 +124,23 @@ def input(key):
         bullets.append(bullet)
         invoke(bullet_pop,bullet,delay=0.9)
         destroy(bullet,1)
+    if key=="enter":
+        if incar:
+            exitpoint=car.world_position+car.right*1.8+Vec3(0,0.6,0)
+            player.position = exitpoint
+            player.enabled =True
+            incar=False
+            camtarget=player
+            sethint()
+        else:
+            if distance(player,car)<2:
+                incar = True
+                player.enabled=False
+                camtarget=car
+                sethint()
+                player.parent=car
+                player.position=Vec3(0,0.6,0.1)
+                player.parent=scene
 
 def bullet_pop(bullet):
     bullets.remove(bullet)
@@ -133,8 +167,28 @@ def npc_hareket():
             npc.look_at_xz(player)
             npc.rotation_y += random.randint(-30,30)
 
-
+ # MARK:UPDATE
 def update():
+    global yaw,pitch
+    if mouse.right:
+        yaw -= mouse.velocity[0]*mouse_sensitivity
+        pitch += mouse.velocity[1]*mouse_sensitivity
+        pitch=clamp(pitch,-15,45)
+    if camtarget:
+        t=Entity()
+        t.position=camtarget.world_position
+        t.rotation_y=yaw
+        t.rotation_x=pitch
+        istenen = t.world_position+t.back+Vec3(0,3,0)
+        destroy(t)
+        camera.position=lerp(camera.position,istenen,min(8*time.dt,1))
+        camera.look_at(camtarget.world_position+Vec3(0,0.6,0))
+    if incar:
+        cardrive(time.dt)
+    else:
+        player_move(time.dt)
+
+
     if held_keys["right arrow"]:
         player.x +=0.1
     if player.y >= 5:
@@ -145,7 +199,8 @@ def update():
     if mouse.world_point:
      player.look_at_xz(mouse.world_point)
     hit_enemy()
-
+    sethint()
+    
 
 
 
@@ -215,6 +270,25 @@ def getgun2():
 
 gun2.on_click=getgun2
 bullets=[]
+
+
+
+
+car = Entity(model="yellowcar",scale=0.01,position=(4,0,10),origin_y = -0.5,speed=0)
+maxforward =14
+maxbackward = 6
+accel,brake,drag =18,28,4.5
+turnrate=85
+incar=False
+
+hint = Text("ipucu",  y=0.4,x=0.4,scale=0.9,color=color.black)
+def sethint():
+    if incar:
+        hint.text="Arabadasin W/S (İLERİ-GERİ)A/D (DİREKSİYON) Enter(in) esc(cik)"
+    else:
+        near = distance(player,car)<2
+        hint.text=f'yaya wasd , enter(bin) space(zipla){"okey" if near else "olumsuz"}'
+sethint()
 EditorCamera()
 Sky()
 app.run()
