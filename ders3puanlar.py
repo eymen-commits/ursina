@@ -1,5 +1,21 @@
 from ursina import *
 
+# --- parametreler
+speed        = 6
+turn_smooth  = 10         # dönüş yumuşatma hızı
+move_smooth  = 12         # hareket yumuşatma hızı
+gravity      = 18
+jump_force   = 8
+
+vel = Vec3(0,0,0)         # yatay (x,z) hız vektörü
+y_vel = 0                 # dikey hız
+cam_offset = Vec3(0, 20, -40)
+
+# basit açı-lerp (kısa yolu seçer)
+def lerp_angle_deg(a, b, t):
+    diff = (b - a + 180) % 360 - 180
+    return a + diff * t
+
 class Particle(Entity):
     def __init__(self,position, color):
         super().__init__(
@@ -26,10 +42,11 @@ class Particle(Entity):
 
 #MARK:CARDRİVE
 def cardrive(dt):
-    if held_keys["w"]:
+    
+    if held_keys["s"]:
         car.speed += accel*dt
         car.speed = min(car.speed,maxforward)
-    elif held_keys["s"]:
+    elif held_keys["w"]:
         car.speed -= brake*dt
         car.speed = max(car.speed,-maxbackward)
     else:
@@ -39,6 +56,7 @@ def cardrive(dt):
     if abs(car.speed)>0.1 and turninput!=0:
         sign=1 if car.speed>=0 else -1
         car.rotation_y+= turninput*turnrate*dt*sign
+    car.position += car.forward*car.speed
     
     
     
@@ -76,21 +94,22 @@ def bombayipatlat():
     destroy(b,3)
  #MARK:İNPUT   
 def input(key):
-
+    global incar
+ 
     if key =="g" and distance(player,gun1)<3:
         getgun()
     if key =="g" and distance(player,gun2)<3:
         getgun2()
-    if key =="s":
-        player.z -=3
-    if key =="w":
-        player.z +=3
-    if key =="d":
-        player.x +=3
-    if key =="a":
-        player.x -=3
-    if key=="space":
-        player.y = 5 
+    # if key =="s":
+    #     player.z -=3
+    # if key =="w":
+    #     player.z +=3
+    # if key =="d":
+    #     player.x +=3
+    # if key =="a":
+    #     player.x -=3
+    # if key=="space":
+    #     player.y = 5 
     if key == "j":
         player.x = random.randint(-50,50)
     if key =="r":
@@ -120,7 +139,7 @@ def input(key):
     if key =="left mouse down" and player.gun:
         bullet = Entity(model="cube",color=color.black,scale=0.6,parent=player.gun)
         bullet.world_parent=scene
-        bullet.animate_position(player.gun.position+bullet.forward*50)
+        bullet.animate_position(bullet.position+bullet.forward*50,curve=curve.linear)
         bullets.append(bullet)
         invoke(bullet_pop,bullet,delay=0.9)
         destroy(bullet,1)
@@ -148,6 +167,9 @@ def hit_enemy():
     for npc in npclist:
         for bullet in bullets:
             if distance(npc,bullet)<3:
+                for i in range(20):
+                    particle_color = color.random_color()
+                    particle = Particle(npc.position, particle_color)
                 npc.x = random.randint(-100,100)
                 npc.z = random.randint(-100,100)
 
@@ -169,41 +191,83 @@ def npc_hareket():
 
  # MARK:UPDATE
 def update():
-    global yaw,pitch
-    if mouse.right:
-        yaw -= mouse.velocity[0]*mouse_sensitivity
-        pitch += mouse.velocity[1]*mouse_sensitivity
-        pitch=clamp(pitch,-15,45)
-    if camtarget:
-        t=Entity()
-        t.position=camtarget.world_position
-        t.rotation_y=yaw
-        t.rotation_x=pitch
-        istenen = t.world_position+t.back+Vec3(0,3,0)
-        destroy(t)
-        camera.position=lerp(camera.position,istenen,min(8*time.dt,1))
-        camera.look_at(camtarget.world_position+Vec3(0,0.6,0))
+    global incar
+    global yaw,pitch,vel,y_vel
+    # --- hedef yön (WASD)
+    move = Vec3(held_keys['d'] - held_keys['a'], 0, held_keys['w'] - held_keys['s'])
+    if move.length() > 0:
+        move = move.normalized()
+        target_vel = move * speed
+    else:
+        target_vel = Vec3(0,0,0)
+    
+   # --- yatay hızı lerp ile yumuşat
+    vel = lerp(vel, target_vel, move_smooth * time.dt)
+
+    # --- oyuncuyu hareket ettir
+    player.position += Vec3(vel.x, 0, vel.z) * time.dt
+    # --- bakış yönünü (yaw) yumuşat
+    if vel.length() > 0.05:
+        target_yaw = math.degrees(math.atan2(vel.x, vel.z))
+        player.rotation_y = lerp_angle_deg(player.rotation_y, target_yaw, turn_smooth * time.dt)
+    # --- zıplama & yer kontrolü (çok basit)
+    on_ground = player.y <= 0.8 + 1e-3
+    if on_ground:
+        player.y = 0.8
+        if held_keys['space']:        # basılı tutunca tek sıçrama
+            y_vel = jump_force
+    else:
+        pass
+    # --- yerçekimi
+    y_vel -= gravity * time.dt
+    player.y += y_vel * time.dt
+    if player.y <= 0.8:               # yere çakılınca sıfırla
+        player.y = 0.8
+        y_vel = 0
+    # --- kamera takibi (lerp ile yumuşak)
+    desired = player.world_position + cam_offset
+    camera.world_position = lerp(camera.world_position, desired, 5 * time.dt)
+    camera.look_at(player, up=Vec3(0,1,0))
+    
     if incar:
         cardrive(time.dt)
+        #smooth_follow(car,time.dt)
     else:
         player_move(time.dt)
+        #smooth_follow(player,time.dt)
+        
 
 
-    if held_keys["right arrow"]:
-        player.x +=0.1
-    if player.y >= 5:
-        player.animate_position((player.x,0,player.z),duration=5)
+   
     coinyakala()
     npc_hareket()
     bombyakala()
-    if mouse.world_point:
-     player.look_at_xz(mouse.world_point)
+    
     hit_enemy()
     sethint()
     
 
 
+def smooth_follow(target, dt):
+    """ Kamerayı hedefin arkasına yumuşakça taşı ve hedefe baktır. """
+    back = target.back.normalized()
+    desired = target.world_position + back*6 + Vec3(0, 3, 0)
+    camera.position = lerp(camera.position, desired, min(8*dt, 1))
+    camera.look_at(target.world_position + Vec3(0,0.6,0))
 
+def player_move(dt):
+    """ Arabada değilken basit yürüme. """
+    move = Vec3(held_keys['right arrow']-held_keys['left arrow'], 0, held_keys['up arrow']-held_keys['down arrow'])
+    if move.length() > 0:
+        move = move.normalized() * 4.5 * dt
+        # Dünyaya göre değil, kameranın yöne göre hareket:
+        forward = camera.forward; forward.y = 0; forward = forward.normalized()
+        right = camera.right; right.y = 0; right = right.normalized()
+        player.position += right*move.x + forward*move.z
+        # Yürürken yüzü hareket yönüne dönsün:
+        facing = (right*move.x + forward*move.z).normalized()
+        player.look_at(player.world_position + facing)
+        player.rotation_x = 0
 app = Ursina(borderless=False)
 
 
@@ -275,9 +339,9 @@ bullets=[]
 
 
 car = Entity(model="yellowcar",scale=0.01,position=(4,0,10),origin_y = -0.5,speed=0)
-maxforward =14
-maxbackward = 6
-accel,brake,drag =18,28,4.5
+maxforward =140
+maxbackward = 63
+accel,brake,drag =100,100,4.5
 turnrate=85
 incar=False
 
@@ -289,6 +353,12 @@ def sethint():
         near = distance(player,car)<2
         hint.text=f'yaya wasd , enter(bin) space(zipla){"okey" if near else "olumsuz"}'
 sethint()
-EditorCamera()
+camtarget = player
+camera.position=Vec3(0,3,-6)
+camera.look_at(camtarget)
+mouse_sensitivity=80
+yaw =0
+pitch =15
+# EditorCamera()
 Sky()
 app.run()
