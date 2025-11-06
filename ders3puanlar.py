@@ -100,6 +100,8 @@ def input(key):
         getgun()
     if key =="g" and distance(player,gun2)<3:
         getgun2()
+    if key =="g" and distance(car,gun2)<30:
+        getguncar()
     # if key =="s":
     #     player.z -=3
     # if key =="w":
@@ -136,8 +138,13 @@ def input(key):
         destroy(menzil,delay=8)
     if key =="p":
         invoke(particle_patlat,delay=3)
-    if key =="left mouse down" and player.gun:
-        bullet = Entity(model="cube",color=color.black,scale=0.6,parent=player.gun)
+    if (key =="left mouse down" and player.gun) or (key =="left mouse down" and car.gun):
+        bullet=None
+        if player.gun:
+            bullet = Entity(model="cube",color=color.black,scale=0.6,parent=player.gun)
+        elif car.gun:
+            bullet = Entity(model="cube",color=color.black,world_scale=0.6,parent=car.gun)
+            bullet.world_scale = 1
         bullet.world_parent=scene
         bullet.animate_position(bullet.position+bullet.forward*50,curve=curve.linear)
         bullets.append(bullet)
@@ -203,35 +210,39 @@ def update():
     
    # --- yatay hızı lerp ile yumuşat
     vel = lerp(vel, target_vel, move_smooth * time.dt)
-
-    # --- oyuncuyu hareket ettir
-    player.position += Vec3(vel.x, 0, vel.z) * time.dt
-    # --- bakış yönünü (yaw) yumuşat
-    if vel.length() > 0.05:
-        target_yaw = math.degrees(math.atan2(vel.x, vel.z))
-        player.rotation_y = lerp_angle_deg(player.rotation_y, target_yaw, turn_smooth * time.dt)
-    # --- zıplama & yer kontrolü (çok basit)
-    on_ground = player.y <= 0.8 + 1e-3
-    if on_ground:
-        player.y = 0.8
-        if held_keys['space']:        # basılı tutunca tek sıçrama
-            y_vel = jump_force
-    else:
-        pass
-    # --- yerçekimi
-    y_vel -= gravity * time.dt
-    player.y += y_vel * time.dt
-    if player.y <= 0.8:               # yere çakılınca sıfırla
-        player.y = 0.8
-        y_vel = 0
-    # --- kamera takibi (lerp ile yumuşak)
-    desired = player.world_position + cam_offset
-    camera.world_position = lerp(camera.world_position, desired, 5 * time.dt)
-    camera.look_at(player, up=Vec3(0,1,0))
+    if incar == False:
+        # --- oyuncuyu hareket ettir
+        player.position += Vec3(vel.x, 0, vel.z) * time.dt
+        # --- bakış yönünü (yaw) yumuşat
+        if vel.length() > 0.05:
+            target_yaw = math.degrees(math.atan2(vel.x, vel.z))
+            player.rotation_y = lerp_angle_deg(player.rotation_y, target_yaw, turn_smooth * time.dt)
+        # --- zıplama & yer kontrolü (çok basit)
+        on_ground = player.y <= 0.8 + 1e-3
+        if on_ground:
+            player.y = 0.8
+            if held_keys['space']:        # basılı tutunca tek sıçrama
+                y_vel = jump_force
+        else:
+            pass
+        # --- yerçekimi
+        y_vel -= gravity * time.dt
+        player.y += y_vel * time.dt
+        if player.y <= 0.8:               # yere çakılınca sıfırla
+            player.y = 0.8
+            y_vel = 0
+        # --- kamera takibi (lerp ile yumuşak)
+        desired = player.world_position + cam_offset
+        camera.world_position = lerp(camera.world_position, desired, 5 * time.dt)
+        camera.look_at(player, up=Vec3(0,1,0))
     
     if incar:
         cardrive(time.dt)
         #smooth_follow(car,time.dt)
+        desired = car.world_position + cam_offset
+        camera.world_position = lerp(camera.world_position, desired, 5 * time.dt)
+        camera.look_at(car, up=Vec3(0,1,0))
+    
     else:
         player_move(time.dt)
         #smooth_follow(player,time.dt)
@@ -331,14 +342,24 @@ def getgun2():
     gun2.position=Vec3(0.5,0.5,0.5)
     player.gun=gun2
 
-
+def getguncar():
+    
+    
+    if  car.gun:
+        car.gun.parent=scene
+        car.gun.position=(random.randint(-20,20),0,random.randint(-20,20))
+        
+    gun2.parent=car
+    gun2.position=Vec3(0.5,0.5,0.5)
+    car.gun=gun2
+    
 gun2.on_click=getgun2
 bullets=[]
 
 
 
 
-car = Entity(model="yellowcar",scale=0.01,position=(4,0,10),origin_y = -0.5,speed=0)
+car = Entity(model="yellowcar",scale=0.01,position=(4,0,10),origin_y = -0.5,speed=0,gun=None)
 maxforward =140
 maxbackward = 63
 accel,brake,drag =100,100,4.5
